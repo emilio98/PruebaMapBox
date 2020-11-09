@@ -2,11 +2,9 @@ package com.example.pruebamapbox;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 
-import android.Manifest;
 import android.annotation.SuppressLint;
-import android.content.pm.PackageManager;
+import android.content.Intent;
 import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.os.Bundle;
@@ -23,13 +21,12 @@ import com.mapbox.android.core.location.LocationEngineResult;
 import com.mapbox.android.core.permissions.PermissionsListener;
 import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.api.directions.v5.DirectionsCriteria;
-import com.mapbox.api.directions.v5.models.DirectionsResponse;
 import com.mapbox.api.directions.v5.models.DirectionsRoute;
+import com.mapbox.api.directions.v5.models.RouteOptions;
+import com.mapbox.core.constants.Constants;
 import com.mapbox.geojson.Feature;
-import com.mapbox.geojson.FeatureCollection;
 import com.mapbox.geojson.Point;
 import com.mapbox.mapboxsdk.Mapbox;
-import com.mapbox.mapboxsdk.camera.CameraUpdate;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.location.LocationComponent;
@@ -42,24 +39,28 @@ import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.maps.Style;
 import com.mapbox.mapboxsdk.style.layers.SymbolLayer;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
-import com.mapbox.services.android.navigation.ui.v5.NavigationLauncher;
+import com.mapbox.navigation.base.options.NavigationOptions;
+import com.mapbox.navigation.core.MapboxNavigation;
+import com.mapbox.navigation.core.MapboxNavigationProvider;
+import com.mapbox.navigation.core.directions.session.RoutesRequestCallback;
+import com.mapbox.navigation.ui.route.NavigationMapRoute;
+/*import com.mapbox.services.android.navigation.ui.v5.NavigationLauncher;
 import com.mapbox.services.android.navigation.ui.v5.NavigationLauncherOptions;
 import com.mapbox.services.android.navigation.ui.v5.route.NavigationMapRoute;
-import com.mapbox.services.android.navigation.v5.navigation.NavigationRoute;
+import com.mapbox.services.android.navigation.v5.navigation.MapboxNavigation;
+import com.mapbox.services.android.navigation.v5.navigation.NavigationRoute;*/
+
+import org.jetbrains.annotations.NotNull;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
-
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.iconAllowOverlap;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.iconIgnorePlacement;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.iconImage;
 
-public class MainActivity extends AppCompatActivity implements MapboxMap.OnMapClickListener,
+public class MainActivity extends AppCompatActivity implements /*MapboxMap.OnMapClickListener,*/
         OnMapReadyCallback, PermissionsListener {
 
     /*private static final String SOURCE_ID = "SOURCE_ID";
@@ -76,6 +77,7 @@ public class MainActivity extends AppCompatActivity implements MapboxMap.OnMapCl
     private long DEFAULT_INTERVAL_IN_MILLISECONDS = 1000L;
     private long DEFAULT_MAX_WAIT_TIME = DEFAULT_INTERVAL_IN_MILLISECONDS * 5;
     private MainActivityLocationCallback callback = new MainActivityLocationCallback(this);
+    private MapboxNavigation mapboxNavigation;
 
     private static class MainActivityLocationCallback
             implements LocationEngineCallback<LocationEngineResult> {
@@ -159,6 +161,7 @@ public class MainActivity extends AppCompatActivity implements MapboxMap.OnMapCl
 
         this.mapboxMap = mapboxMap;
 
+
         mapboxMap.setStyle(new Style.Builder().fromUri("mapbox://styles/mapbox/cjf4m44iw0uza2spb3q0a7s41")
                 /*.withImage(ICON_ID, BitmapFactory.decodeResource(
                         MainActivity.this.getResources(), R.drawable.mapbox_marker_icon_default))
@@ -177,20 +180,33 @@ public class MainActivity extends AppCompatActivity implements MapboxMap.OnMapCl
 
                         addDestinationIconSymbolLayer(style);
 
-                        mapboxMap.addOnMapClickListener(MainActivity.this);
+                        //mapboxMap.addOnMapClickListener(MainActivity.this);
 
                         button=findViewById(R.id.startButton);
+
                         button.setOnClickListener(new View.OnClickListener() {
                             @Override
                             public void onClick(View v) {
-                                boolean simulateRoute = true;
-                                NavigationLauncherOptions options = NavigationLauncherOptions.builder()
+
+                                Intent intent = new Intent(MainActivity.this, Navegador.class);
+                                /*ArrayList<Double> origen = new ArrayList<>();
+                                origen.add(mapboxMap.getLocationComponent().getLastKnownLocation().getLongitude());
+                                origen.add(mapboxMap.getLocationComponent().getLastKnownLocation().getLatitude());
+
+                                intent.putExtra("origen",origen);
+                                intent.putExtra("indice-ruta",1);*/
+                                startActivity(intent);
+
+
+                                /*NavigationLauncherOptions options = NavigationLauncherOptions.builder()
                                         .directionsRoute(currentRoute)
                                         .shouldSimulateRoute(simulateRoute)
                                         .build();
-                                NavigationLauncher.startNavigation(MainActivity.this,options);
+                                NavigationLauncher.startNavigation(MainActivity.this,options);*/
                             }
                         });
+
+                        drawRoute(1);
                     }
                 });
     }
@@ -212,7 +228,21 @@ public class MainActivity extends AppCompatActivity implements MapboxMap.OnMapCl
         loadedMapStyle.addLayer(destinationSymbolLayer);
     }
 
-    @SuppressWarnings( {"MissingPermission"})
+    public boolean drawRoute(int index) {
+
+        LocationComponent locationComponent = mapboxMap.getLocationComponent();
+        Point originPoint = Point.fromLngLat(locationComponent.getLastKnownLocation().getLongitude(),
+                locationComponent.getLastKnownLocation().getLatitude());
+
+        getRoute(originPoint, index);
+
+        button.setEnabled(true);
+        button.setBackgroundResource(R.color.mapboxBlue);
+        button.setAlpha(1);
+        return true;
+    }
+
+    /*@SuppressWarnings( {"MissingPermission"})
     @Override
     public boolean onMapClick(@NonNull LatLng point) {
 
@@ -232,13 +262,47 @@ public class MainActivity extends AppCompatActivity implements MapboxMap.OnMapCl
         button.setBackgroundResource(R.color.mapboxBlue);
         button.setAlpha(1);
         return true;
-    }
+    }*/
 
-    private void getRoute(Point origin, Point destination) {
-        NavigationRoute.builder(this)
+    private void getRoute(Point origin, int index) {
+        List<Point> ruta = Routes.getRoute(index);
+        ruta.add(0,origin);
+
+        mapboxNavigation.requestRoutes(
+                RouteOptions.builder()
+                        .accessToken(getString(R.string.mapbox_access_token))
+                        .coordinates(ruta)
+                        .profile(DirectionsCriteria.PROFILE_WALKING)
+                        .baseUrl(Constants.BASE_API_URL)
+                        .user(DirectionsCriteria.PROFILE_DEFAULT_USER)
+                        .requestUuid("uuid")
+                        .build()
+                , new RoutesRequestCallback() {
+                    @Override
+                    public void onRoutesReady(@NotNull List<? extends DirectionsRoute> list) {
+                        currentRoute = list.get(0);
+                        Routes.setCurrentDirectionsRoute(currentRoute);
+                        if (navigationMapRoute != null) 
+                            navigationMapRoute.addRoute(currentRoute);
+                    }
+
+                    @Override
+                    public void onRoutesRequestFailure(@NotNull Throwable throwable, @NotNull RouteOptions routeOptions) {
+                        Log.e(TAG, "Error: " + throwable.getMessage());
+                    }
+
+                    @Override
+                    public void onRoutesRequestCanceled(@NotNull RouteOptions routeOptions) {
+                        Toast.makeText(MainActivity.this, "error", Toast.LENGTH_LONG).show();
+                    }
+                }
+        );
+        /*NavigationRoute.builder(this)
                 .accessToken(Mapbox.getAccessToken())
                 .origin(origin)
                 .destination(destination)
+                .alternatives(false)
+                .addWaypoint(Point.fromLngLat(-3.611744, 37.181586))
                 .profile(DirectionsCriteria.PROFILE_WALKING)
                 .build()
                 .getRoute(new Callback<DirectionsResponse>() {
@@ -269,9 +333,12 @@ public class MainActivity extends AppCompatActivity implements MapboxMap.OnMapCl
                     public void onFailure(Call<DirectionsResponse> call, Throwable throwable) {
                         Log.e(TAG, "Error: " + throwable.getMessage());
                     }
-                });
+                });*/
     }
 
+    public DirectionsRoute getDirectionsRouteFromList(ArrayList<Point> ruta){
+        return null;
+    }
 
 
     @SuppressWarnings( {"MissingPermission"})
@@ -328,6 +395,16 @@ public class MainActivity extends AppCompatActivity implements MapboxMap.OnMapCl
 
         locationEngine.requestLocationUpdates(request, callback, getMainLooper());
         locationEngine.getLastLocation(callback);
+
+        NavigationOptions navOptions = MapboxNavigation
+                .defaultNavigationOptionsBuilder(this,getString(R.string.mapbox_access_token))
+                .locationEngine(locationEngine)
+                .build();
+        mapboxNavigation= MapboxNavigationProvider.create(navOptions);
+        navigationMapRoute = new NavigationMapRoute.Builder(mapView, this.mapboxMap, this)
+                .withVanishRouteLineEnabled(true)
+                .withMapboxNavigation(mapboxNavigation)
+                .build();
     }
 
 
@@ -374,6 +451,7 @@ public class MainActivity extends AppCompatActivity implements MapboxMap.OnMapCl
             locationEngine.removeLocationUpdates(callback);
         }
         mapView.onDestroy();
+        mapboxNavigation.onDestroy();
     }
 
 }
